@@ -4,13 +4,16 @@ import pandas as pd
 
 def extract_product_data(raw_files):
 
-    if (raw_files == None):
-        return None
-
     df = pd.DataFrame()
+
+    if (raw_files == None):
+        return df
 
     for raw_file in raw_files:
         df = pd.concat([df, pd.read_excel(raw_file)], ignore_index=True)
+
+    df["Ngày đăng ký"] = pd.to_datetime(df["Ngày đăng ký"])
+    df["Ngày hợp đồng"] = pd.to_datetime(df["Ngày hợp đồng"])
 
     product_desc = df["Tên hàng"].str.upper()
 
@@ -80,4 +83,4 @@ def extract_product_data(raw_files):
     output["Nhãn hiệu"] = brand
     output["Model"] = model
 
-    return output.to_csv()
+    return output
