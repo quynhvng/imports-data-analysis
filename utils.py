@@ -1,7 +1,8 @@
-import re
 import pandas as pd
+import re
+import streamlit as st
 
-
+@st.cache
 def extract_product_data(raw_files):
 
     df = pd.DataFrame()
