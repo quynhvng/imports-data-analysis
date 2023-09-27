@@ -17,24 +17,14 @@ def run():
 
     st.set_page_config(
         page_title="Báo cáo thống kê nhập khẩu máy móc xây dựng",
+        layout="wide"
     )
 
     "# BÁO CÁO THỐNG KÊ NHẬP KHẨU MÁY MÓC XÂY DỰNG"
 
     with st.sidebar:
-        op1 = st.selectbox(
-            "Thống kê số lượng hàng nhập theo",
-            ("Mặt hàng", "Nhãn hiệu", "Nhãn hiệu - Model")
-        )
-        op2 = st.selectbox(
-            "Thống kê số lượng theo đơn vị NK",
-            np.append(["Không thống kê theo đơn vị"], pd.unique(df0["Tên doanh nghiệp XNK"]))
-        )
-        op3 = st.selectbox(
-            "Thống kê xuất xứ hàng nhập theo",
-            ("Đơn vị đối tác", "Tên nuớc xuất xứ")
-        )
-
+        
+       
         with st.form("my-form", clear_on_submit=True):
             
             uploaded_files = st.file_uploader("Tải lên các file danh sách tờ khai nhập khẩu (.xlsx)", accept_multiple_files=True)
@@ -59,7 +49,7 @@ def run():
             df0["Ngày đăng ký"].min().strftime("%d/%m/%Y"),
             df0["Ngày đăng ký"].max().strftime("%d/%m/%Y"))
         )
-
+        "ĐƠN VỊ TÍNH: USD"
     with col2:
         df0["Giá trị hàng nhập"] = np.round(df0["Đơn giá khai báo(USD)"]*df0["Lượng"],0)
         st.metric(
@@ -68,65 +58,88 @@ def run():
         )
 
     st.subheader("THỐNG KÊ SỐ LƯỢNG HÀNG NHẬP")
-    
-    if (op2 != "Không thống kê theo đơn vị"):
-        sum1 = df0[df0["Tên doanh nghiệp XNK"]==op2]
-    else: sum1 = df0
-    sum1 = sum1.groupby(op1)["Lượng"].sum().sort_values(ascending=False).reset_index()
 
-    col3, col4 = st.columns(2)
+    tab1, tab2 = st.tabs(["Tổng quan", "Theo đơn vị nhập khẩu"])
 
-    with col3:
-        st.dataframe(
-            sum1,
-            use_container_width=True,
-            hide_index=True
+    with tab1:
+        op1 = st.selectbox(
+            "Thống kê số lượng hàng nhập theo",
+            ("Mặt hàng", "Nhãn hiệu", "Nhãn hiệu - Model")
         )
-    with col4:
-        st.altair_chart(
-            alt.Chart(sum1.head(15)).mark_bar().encode(
-                x="Lượng",
-                y=alt.Y(op1).sort('-x')
-            ).properties(
-                title="Top 15 theo số lượng nhập khẩu"
-            ),
-            use_container_width=True
+        sum1 = df0.groupby(op1)["Lượng"].sum().sort_values(ascending=False).reset_index()
+        col3, col4 = st.columns(2)
+        with col3:
+            st.dataframe(
+                sum1,
+                use_container_width=True,
+                hide_index=True
+            )
+        with col4:
+            st.altair_chart(
+                alt.Chart(sum1.head(15)).mark_bar().encode(
+                    x="Lượng",
+                    y=alt.Y(op1).sort('-x')
+                ).properties(
+                    title="Top 15 theo số lượng nhập khẩu"
+                ),
+                use_container_width=True
+            )
+    with tab2:
+        op2 = st.selectbox(
+            "Thống kê số lượng hàng nhập theo đơn vị nhập khẩu",
+            pd.unique(df0["Tên doanh nghiệp XNK"])
+        )
+        sum2 = df0[df0["Tên doanh nghiệp XNK"]==op2]
+        sum2 = sum2.groupby(["Mặt hàng", "Nhãn hiệu", "Model"])[["Lượng", "Giá trị hàng nhập"]]
+        sum2 = sum2.sum().sort_values(by="Giá trị hàng nhập", ascending=False).reset_index()
+        sum2.loc["Tổng"] = sum2.sum()
+        sum2.loc[sum2.index[-1], "Mặt hàng":"Model"] = ""
+        st.dataframe(
+            sum2,
+            use_container_width=True,
         )
 
     st.subheader("THỐNG KÊ XUẤT XỨ HÀNG NHẬP")
 
-    tab1, tab2 = st.tabs(["Chi tiết", "Tổng quan"])
+    tab3, tab4 = st.tabs(["Theo đơn vị xuất khẩu", "Theo nước xuất xứ"])
     
-    with tab1:
-        sum2 = df0.groupby(op3)["Giá trị hàng nhập"].sum().sort_values(ascending=False).reset_index()
-
+    with tab3:
+        sum3 = df0.groupby("Đơn vị đối tác")["Giá trị hàng nhập"].sum().sort_values(ascending=False).reset_index()
         col5, col6 = st.columns(2)
         with col5:
             st.dataframe(
-                sum2,
+                sum3,
                 use_container_width=True,
                 hide_index=True
             )
         with col6:
             st.altair_chart(
-                alt.Chart(sum2.head(15)).mark_bar().encode(
-                    x="Giá trị hàng nhập",
-                    y=alt.Y(op3).sort('-x')
+                alt.Chart(sum3.head(15)).mark_bar().encode(
+                    alt.X("Giá trị hàng nhập"),
+                    alt.Y("Đơn vị đối tác").sort('-x')
                 ).properties(
                     title="Top 15 theo giá trị nhập khẩu"
                 ),
                 use_container_width=True
+            )    
+    with tab4:
+        sum4 = df0.groupby("Tên nuớc xuất xứ")["Giá trị hàng nhập"].sum().sort_values(ascending=False).reset_index()
+        col7, col8 = st.columns(2)
+        with col7:
+            st.altair_chart(
+                alt.Chart(sum4).mark_bar().encode(
+                    x="Giá trị hàng nhập",
+                    y=alt.Y("Tên nuớc xuất xứ").sort('-x')
+                ),
+                use_container_width=True
             )
-    
-    with tab2:
-        sum3 = df0.groupby("Tên nuớc xuất xứ")["Giá trị hàng nhập"].sum().sort_values(ascending=False).reset_index()
-        st.altair_chart(
-            alt.Chart(sum3).mark_arc().encode(
-                theta="Giá trị hàng nhập",
-                color="Tên nuớc xuất xứ"
-            )
-        )
-        
+        with col8:
+            st.altair_chart(
+                alt.Chart(sum4).mark_arc().encode(
+                    theta="Giá trị hàng nhập",
+                    color="Tên nuớc xuất xứ"
+                )
+            )     
     
     st.subheader("DỮ LIỆU GỐC")
     "Thêm chức năng sửa dữ liệu"
