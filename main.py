@@ -14,9 +14,24 @@ def run():
         layout="wide"
     )
 
+    if ("submitted" in st.session_state):
+        df = st.session_state.df
+    else:
+        df = pd.read_csv("sample.csv", index_col=0)
+        df["Ngày đăng ký"] = pd.to_datetime(df["Ngày đăng ký"])
+        df["Ngày hợp đồng"] = pd.to_datetime(df["Ngày hợp đồng"])
+    
+    df.dropna(inplace=True, subset=["Mặt hàng", "Nhãn hiệu", "Model"])
+    df["Nhãn hiệu - Model"] = df["Nhãn hiệu"] + " - " + df["Model"]
+
     "# BÁO CÁO THỐNG KÊ NHẬP KHẨU MÁY MÓC XÂY DỰNG"
 
-    with st.sidebar:  
+    with st.sidebar:
+        op2 = st.selectbox(
+            "Thống kê cho một đơn vị nhập khẩu",
+            np.append(["Không xem theo đơn vị nhập khẩu"], pd.unique(df["Tên doanh nghiệp XNK"]))
+        )
+        st.divider()
         with st.form("my-form", clear_on_submit=False):
             uploaded_files = st.file_uploader("Tải lên các file danh sách tờ khai nhập khẩu (.xlsx)", accept_multiple_files=True)
             submitted = st.form_submit_button("Tách dữ liệu")
@@ -32,15 +47,8 @@ def run():
                 mime="text/csv",
             )
 
-    if ("submitted" in st.session_state):
-        df = st.session_state.df
-    else:
-        df = pd.read_csv("sample.csv", index_col=0)
-        df["Ngày đăng ký"] = pd.to_datetime(df["Ngày đăng ký"])
-        df["Ngày hợp đồng"] = pd.to_datetime(df["Ngày hợp đồng"])
-    
-    df.dropna(inplace=True, subset=["Mặt hàng", "Nhãn hiệu", "Model"])
-    df["Nhãn hiệu - Model"] = df["Nhãn hiệu"] + " - " + df["Model"]
+    if (op2!="Không xem theo đơn vị nhập khẩu"):
+        df = df[df["Tên doanh nghiệp XNK"]==op2]
 
     col1, col2 = st.columns(2)
 
@@ -59,7 +67,7 @@ def run():
 
     st.subheader("THỐNG KÊ SỐ LƯỢNG HÀNG NHẬP")
 
-    tab1, tab2 = st.tabs(["Tổng quan", "Theo đơn vị nhập khẩu"])
+    tab1, tab2 = st.tabs(["Tổng quan", "Chi tiết"])
 
     with tab1:
         op1 = st.selectbox(
@@ -77,20 +85,15 @@ def run():
         with col4:
             st.altair_chart(
                 alt.Chart(sum1.head(15)).mark_bar().encode(
-                    x="Lượng",
-                    y=alt.Y(op1).sort('-x')
+                    alt.X("Lượng"),
+                    alt.Y(op1).sort("-x")
                 ).properties(
                     title="Top 15 theo số lượng nhập khẩu"
                 ),
                 use_container_width=True
             )
     with tab2:
-        op2 = st.selectbox(
-            "Thống kê số lượng hàng nhập theo đơn vị nhập khẩu",
-            pd.unique(df["Tên doanh nghiệp XNK"])
-        )
-        sum2 = df[df["Tên doanh nghiệp XNK"]==op2]
-        sum2 = sum2.groupby(["Mặt hàng", "Nhãn hiệu", "Model"])[["Lượng", "Giá trị hàng nhập"]]
+        sum2 = df.groupby(["Mặt hàng", "Nhãn hiệu", "Model"])[["Lượng", "Giá trị hàng nhập"]]
         sum2 = sum2.sum().sort_values(by="Giá trị hàng nhập", ascending=False).reset_index()
         sum2.loc["Tổng"] = sum2.sum()
         sum2.loc[sum2.index[-1], "Mặt hàng":"Model"] = ""
@@ -116,7 +119,8 @@ def run():
             st.altair_chart(
                 alt.Chart(sum3.head(15)).mark_bar().encode(
                     alt.X("Giá trị hàng nhập"),
-                    alt.Y("Đơn vị đối tác").sort('-x')
+                    alt.Y("Đơn vị đối tác").sort("-x"),
+                    tooltip=[alt.Tooltip("Giá trị hàng nhập", format=",.0f"), "Đơn vị đối tác"]
                 ).properties(
                     title="Top 15 theo giá trị nhập khẩu"
                 ),
@@ -128,21 +132,29 @@ def run():
         with col7:
             st.altair_chart(
                 alt.Chart(sum4).mark_bar().encode(
-                    x="Giá trị hàng nhập",
-                    y=alt.Y("Tên nuớc xuất xứ").sort('-x')
+                    alt.X("Giá trị hàng nhập"),
+                    alt.Y("Tên nuớc xuất xứ").sort("-x"),
+                    tooltip=[alt.Tooltip("Giá trị hàng nhập", format=",.0f"), "Tên nuớc xuất xứ"]
                 ),
                 use_container_width=True
             )
         with col8:
+            sum4 = sum4.rename(columns={"Giá trị hàng nhập": "Value"})
             st.altair_chart(
-                alt.Chart(sum4).mark_arc().encode(
-                    theta="Giá trị hàng nhập",
-                    color="Tên nuớc xuất xứ"
+                alt.Chart(sum4).transform_joinaggregate(
+                    TotalVal='sum(Value)',
+                ).transform_calculate(
+                    PercentOfTotal="datum.Value / datum.TotalVal"
+                ).mark_arc().encode(
+                    alt.Theta("PercentOfTotal:Q"),
+                    alt.Color("Tên nuớc xuất xứ"),
+                    tooltip=[alt.Tooltip("PercentOfTotal:Q", format=".0%"), "Tên nuớc xuất xứ"]
                 )
-            )     
+            )
+
     
     st.subheader("DỮ LIỆU GỐC")
-    "Thêm chức năng sửa dữ liệu"
+    "Thêm chức năng sửa dữ liệu?"
     st.dataframe(df)
    
 
